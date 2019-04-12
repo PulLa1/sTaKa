@@ -4,6 +4,7 @@
 import time
 from concurrent.futures.thread import ThreadPoolExecutor
 
+from base.queues import threadLinkQueue
 from taskPool.taskPa import taskPapa
 
 
@@ -32,5 +33,7 @@ if __name__ == '__main__':
     for i in range(10):
         fO = Foo()
         fO.stage_compose()
+    while threadLinkQueue().task_wait_queue.empty():
+        threadLinkQueue().task_wait_queue.get().join()
 
     print("total cost ",time.time() - time1)
