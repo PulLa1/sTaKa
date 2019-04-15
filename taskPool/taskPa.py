@@ -66,6 +66,22 @@ class pushStage(threading.Thread):
         with stageWaiter():
             pass
 
+class taskPool(threading.Thread):
+    def __init__(self):
+        super(taskPool,self).__init__()
+        self.task = threadLinkQueue().task_wait_queue.get()
+
+    def run(self):
+        fix_stage_ls = self.task.fix_stage_ls
+        for stage in fix_stage_ls:
+            with pushStage(stage, self.task.wait_queue, self.task.thread_wait, self.task.submit_queue, self.task.task_id):
+                print("")
+
+    def __enter__(self):
+        self.start()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        print("")
 
 
 class taskPapa():
@@ -99,10 +115,12 @@ class taskPapa():
         self.fix_stage_ls = copy(self.fix_stages())
         if self.do_nothing not in self.fix_stage_ls:
             self.fix_stage_ls.append(self.do_nothing)
-
-        for stage in self.fix_stage_ls:
-            with pushStage(stage,self.wait_queue,self.thread_wait,self.submit_queue,self.task_id):
-                print("")
+        threadLinkQueue().task_wait_queue.put(self)
+        with taskPool():
+            pass
+        # for stage in self.fix_stage_ls:
+        #     with pushStage(stage,self.wait_queue,self.thread_wait,self.submit_queue,self.task_id):
+        #         print("")
 
 
 
@@ -124,43 +142,43 @@ class stageWaiter(threading.Thread):
         func = self.gtir.get_thread_infos
         exe = self.thread_submit.submit(func)
         rs_queue = queue.Queue()
-        with stageEnder(self.gtir, exe, rs_queue):
-            try:
-                flag = 0   # timeout
-                timeo = random.randint(1,2)
-                exe.exception(timeout=timeo)
-
-                if not rs_queue.get(block=False):
-                    print("step %s end queue get" % self.gtir.fn)
-                    print("step %s set flag to 1" % self.gtir.fn)
-                    flag = 1  #  killed
-                    raise exe._exception
-                print("fn %s exe done is " % self.gtir.fn, exe.done())
-            except queue.Empty:
-                pass
-
-            except ReceiverEndMsgException:
-                print(("got end msg for  task %s , task will term self thread %s , name is %s "
-                       % (self.gtir.fn, self.gtir.b, self.gtir.a)))
-                try:
-                    # TASK_ENDER().task_ender(task_id=self.gtir.task_id)
-                    stop_thread(self.gtir.b)
-                except SystemExit:
-                    print("SystemExit error")
-
-            except concurrent.futures._base.TimeoutError as e:
-                print("flag is %s" % flag)
-                if flag == 0:
-                    print("task %s timeout , task will term self thread %s , name is %s " % (
-                        self.gtir.fn, self.gtir.b, self.gtir.a))
-                elif flag == 1:
-                    print("task %s end from queue , task will term self thread %s , name is %s " % (
-                        self.gtir.fn, self.gtir.b, self.gtir.a))
-                TASK_ENDER().task_ender(task_id=self.gtir.task_id)
-                stop_thread(self.gtir.b)
-            finally:
-                print("getting resulting ")
-                self.gtir.wait.put(True)
+        # with stageEnder(self.gtir, exe, rs_queue):
+        #     try:
+        #         flag = 0   # timeout
+        #         timeo = random.randint(1,2)
+        #         exe.exception(timeout=timeo)
+        #
+        #         if not rs_queue.get(block=False):
+        #             print("step %s end queue get" % self.gtir.fn)
+        #             print("step %s set flag to 1" % self.gtir.fn)
+        #             flag = 1  #  killed
+        #             raise exe._exception
+        #         print("fn %s exe done is " % self.gtir.fn, exe.done())
+        #     except queue.Empty:
+        #         pass
+        #
+        #     except ReceiverEndMsgException:
+        #         print(("got end msg for  task %s , task will term self thread %s , name is %s "
+        #                % (self.gtir.fn, self.gtir.b, self.gtir.a)))
+        #         try:
+        #             # TASK_ENDER().task_ender(task_id=self.gtir.task_id)
+        #             stop_thread(self.gtir.b)
+        #         except SystemExit:
+        #             print("SystemExit error")
+        #
+        #     except concurrent.futures._base.TimeoutError as e:
+        #         print("flag is %s" % flag)
+        #         if flag == 0:
+        #             print("task %s timeout , task will term self thread %s , name is %s " % (
+        #                 self.gtir.fn, self.gtir.b, self.gtir.a))
+        #         elif flag == 1:
+        #             print("task %s end from queue , task will term self thread %s , name is %s " % (
+        #                 self.gtir.fn, self.gtir.b, self.gtir.a))
+        #         TASK_ENDER().task_ender(task_id=self.gtir.task_id)
+        #         stop_thread(self.gtir.b)
+        #     finally:
+        #         print("getting resulting ")
+        #         self.gtir.wait.put(True)
 
 
 class stageEnder(threading.Thread):
